@@ -1,0 +1,1 @@
+<p>Uses Retrieval-Augmented Generation to ground LLM responses in document context, eliminating hallucinations. An agentic router pattern (tool-use via Groq's function calling API) allows the system to dynamically select between RAG retrieval, mathematical computation, and summarization — demonstrating a ReAct-style agent loop without heavyweight frameworks.</p>
