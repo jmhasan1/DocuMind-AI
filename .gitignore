@@ -10,3 +10,4 @@ __pycache__
 uv.lock
 pyproject.toml
 chroma_db
+.python-version
