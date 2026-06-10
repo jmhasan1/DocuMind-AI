@@ -14,14 +14,14 @@ def chunk_text(text, chunk_size=500, overlap=50):
         chunks.append(" ".join(words[i:i+chunk_size]))
     return chunks
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 client = chromadb.PersistentClient(path="./chroma_db")
 collection = client.get_or_create_collection("documents")
 
 # Run once to ingest your PDFs
 text = load_pdf("data/your_document.pdf")
 chunks = chunk_text(text)
-embeddings = model.encode(chunks).tolist()
+embeddings = embed_model.encode(chunks).tolist()
 collection.add(
     documents=chunks,
     embeddings=embeddings,
