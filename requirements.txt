@@ -1,0 +1,12 @@
+# Document Ingestion & Vector DB
+pymupdf
+chromadb
+sentence-transformers
+
+# AI Inference & UI
+groq
+gradio
+
+# Environment & Utility (Crucial Additions)
+python-dotenv
+numexpr

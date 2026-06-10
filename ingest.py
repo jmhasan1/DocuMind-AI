@@ -19,7 +19,7 @@ client = chromadb.PersistentClient(path="./chroma_db")
 collection = client.get_or_create_collection("documents")
 
 # Run once to ingest your PDFs
-text = load_pdf("your_document.pdf")
+text = load_pdf("data/your_document.pdf")
 chunks = chunk_text(text)
 embeddings = model.encode(chunks).tolist()
 collection.add(

@@ -1,0 +1,12 @@
+.venv
+data
+.env
+__pycache__
+*.pyc
+*.pyo
+.DS_Store
+
+
+uv.lock
+pyproject.toml
+chroma_db
