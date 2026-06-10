@@ -2,6 +2,11 @@
 from groq import Groq
 import chromadb
 from sentence_transformers import SentenceTransformer
+from dotenv import load_dotenv
+
+# Explicitly load the .env file
+load_dotenv()
+
 
 embed_model = SentenceTransformer("all-MiniLM-L6-v2")
 client = chromadb.PersistentClient(path="./chroma_db")
