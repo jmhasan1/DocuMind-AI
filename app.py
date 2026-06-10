@@ -1,3 +1,4 @@
+# Gradio app for DocuMind AI
 # app.py
 import gradio as gr
 from agent import agent_loop
