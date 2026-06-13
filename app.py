@@ -14,11 +14,18 @@ def chat(message, history):
     return response
 
 def ingest_file(file):
+    # Guard clause to handle accidental empty clicks
+    if file is None:
+        return "⚠️ Please upload a valid PDF file first before clicking Ingest!"
+        
     text = load_pdf(file.name)
     chunks = chunk_text(text)
     embeddings = embed_model.encode(chunks).tolist()
-    collection.add(documents=chunks, embeddings=embeddings,
-                   ids=[f"c_{i}" for i in range(len(chunks))])
+    collection.add(
+        documents=chunks, 
+        embeddings=embeddings,
+        ids=[f"c_{i}" for i in range(len(chunks))]
+    )
     return f"✅ Ingested {len(chunks)} chunks"
 
 with gr.Blocks(title="DocuMind AI") as demo:
