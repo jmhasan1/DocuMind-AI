@@ -48,16 +48,9 @@ tools = [
     }
 ]
 
-# def run_tool(name, args):
-#     if name == "rag_search":
-#         return rag_answer(args["query"])
-#     elif name == "calculate":
-#         return str(eval(args["expression"]))  # use numexpr in prod
-#     elif name == "summarize_doc":
-#         return rag_answer(f"Summarize everything about: {args['topic']}")
     
-# import numexpr as ne
-# from rag_core import rag_answer
+import numexpr as ne
+from rag_core import rag_answer
 
 def run_tool(name, args):
     if name == "rag_search":
@@ -76,9 +69,23 @@ def run_tool(name, args):
     elif name == "summarize_doc":
         return rag_answer(f"Summarize everything about: {args['topic']}")
 
+
 def agent_loop(user_message, chat_history):
     llm = Groq()
-    messages = chat_history + [{"role": "user", "content": user_message}]
+    
+    # Define a strict system prompt to anchor model formatting
+    system_prompt = {
+        "role": "system",
+        "content": (
+            "You are a precise AI Assistant equipped with specialized tools. "
+            "When invoking a function tool, you MUST output ONLY the valid JSON object "
+            "arguments matching the tool schema parameters. Never wrap your function "
+            "arguments in extra text tags, XML tags, or markdown codeblocks."
+        )
+    }
+    
+    # Reinforce the system prompt at the very beginning of the thread arrays
+    messages = [system_prompt] + chat_history + [{"role": "user", "content": user_message}]
     
     response = llm.chat.completions.create(
         model="llama-3.1-8b-instant",
@@ -88,6 +95,7 @@ def agent_loop(user_message, chat_history):
     )
     
     msg = response.choices[0].message
+    
     # If LLM called a tool
     if msg.tool_calls:
         tool_call = msg.tool_calls[0]
@@ -95,12 +103,19 @@ def agent_loop(user_message, chat_history):
             tool_call.function.name,
             json.loads(tool_call.function.arguments)
         )
+        
         # Feed tool result back and get final answer
         messages.append(msg)
-        messages.append({"role": "tool", "content": tool_result, 
-                         "tool_call_id": tool_call.id})
+        messages.append({
+            "role": "tool", 
+            "content": tool_result, 
+            "tool_call_id": tool_call.id
+        })
+        
         final = llm.chat.completions.create(
-            model="llama-3.1-8b-instant", messages=messages
+            model="llama-3.1-8b-instant", 
+            messages=messages
         )
         return final.choices[0].message.content
+        
     return msg.content
