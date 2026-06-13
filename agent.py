@@ -48,11 +48,31 @@ tools = [
     }
 ]
 
+# def run_tool(name, args):
+#     if name == "rag_search":
+#         return rag_answer(args["query"])
+#     elif name == "calculate":
+#         return str(eval(args["expression"]))  # use numexpr in prod
+#     elif name == "summarize_doc":
+#         return rag_answer(f"Summarize everything about: {args['topic']}")
+    
+# import numexpr as ne
+# from rag_core import rag_answer
+
 def run_tool(name, args):
     if name == "rag_search":
         return rag_answer(args["query"])
+        
     elif name == "calculate":
-        return str(eval(args["expression"]))  # use numexpr in prod
+        expression = args["expression"]
+        try:
+            # Safe evaluation using numexpr
+            result = ne.evaluate(expression).item()
+            return str(result)
+        except Exception:
+            # Fallback if the LLM hallucinated a non-math string into the tool
+            return f"Error: '{expression}' is not a valid mathematical expression."
+            
     elif name == "summarize_doc":
         return rag_answer(f"Summarize everything about: {args['topic']}")
 
