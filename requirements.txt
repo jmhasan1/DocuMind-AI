@@ -10,3 +10,8 @@ gradio
 # Environment & Utility (Crucial Additions)
 python-dotenv
 numexpr
+
+# Langchain
+langchain
+langchain-openai
+openai
