@@ -1,35 +1,70 @@
-# rag_core.py
-from groq import Groq
-from langchain_openai import ChatOpenAI
-import chromadb
-from sentence_transformers import SentenceTransformer
-from dotenv import load_dotenv
+"""Retrieval + generation layer for DocuMind AI."""
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-# Explicitly load the .env file
-load_dotenv()
+from ingest import collection, embed_model
+from llm_factory import get_llm
 
 
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-client = chromadb.PersistentClient(path="./chroma_db")
-collection = client.get_or_create_collection("documents")
-llm = Groq()  # set GROQ_API_KEY in env
-llm_gpt=ChatOpenAI(model="gpt-4o-mini-2024-07-18")
+def _history_to_messages(chat_history):
+    messages = []
+    for turn in chat_history or []:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if not isinstance(content, str) or not content.strip():
+            continue
+        if role == "user":
+            messages.append(HumanMessage(content=content))
+        elif role == "assistant":
+            messages.append(AIMessage(content=content))
+    return messages
 
-# Processing the Query and Vector Similarity Search
-# This function accepts two inputs: the active query from the user, and an optional chat_history list containing prior turns of the conversation to handle memory tracking.
-def rag_answer(query, chat_history=[]):
-    # 1. Embed the query
-    query_embedding = embed_model.encode([query]).tolist()          # Turns the incoming plain-text question into a 384-dimensional dense vector array. To find relevant documents, we must search vectors using vectors
-    # 2. Retrieve top-3 chunks
-    results = collection.query(query_embeddings=query_embedding, n_results=3)       # ChromaDB calculates the cosine distance between your question's vector and every chunk vector sitting in your local database. It instantly returns the top 3 closest, most semantically relevant text blocks
-    context = "\n\n".join(results["documents"][0])
-    # 3. Build prompt with memory (Prompt Construction with Memory Insertion)
-    messages = chat_history + [                                                             # This constructs a unified conversation layout for the model. If chat_history holds previous exchanges, they are appended first.
-        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {query}"}            # We inject the extracted raw document pieces explicitly into the text string. The LLM doesn't need to guess or hallucinate—the source reference answers are pinned straight to the prompt input
-    ]
-    response = llm_gpt.chat.completions.create(
-        model="gpt-4o-mini-2024-07-18", messages=messages
+
+def rag_answer(query, chat_history=None, provider="groq"):
+    """Retrieve relevant chunks and generate a grounded answer."""
+    query_embedding = embed_model.encode([query]).tolist()
+
+    results = collection.query(
+        query_embeddings=query_embedding,
+        n_results=3,
     )
-    return response.choices[0].message.content                                              # Extracts the generated clean string reply from the JSON payload returned by Groq's/ChatGPT's API response.
 
-    
+    documents = results.get("documents", [[]])
+    chunks = documents[0] if documents else []
+
+    if not chunks:
+        return (
+            "I couldn't find any indexed document content. "
+            "Please upload and ingest a PDF first."
+        )
+
+    context = "\n\n".join(
+        f"[Source {i + 1}]\n{chunk}" for i, chunk in enumerate(chunks)
+    )
+
+    messages = [
+        SystemMessage(
+            content=(
+                "You are the RAG answerer for DocuMind AI. Answer using the "
+                "retrieved document context. If the answer is not supported "
+                "by the context, say that the information was not found in "
+                "the uploaded documents. Do not fabricate citations or facts."
+            )
+        )
+    ]
+    messages.extend(_history_to_messages(chat_history))
+    messages.append(
+        HumanMessage(
+            content=(
+                f"Retrieved document context:\n{context}\n\n"
+                f"Current question: {query}\n\n"
+                "Answer concisely and cite the retrieved passages as "
+                "[Source 1], [Source 2], etc. when useful."
+            )
+        )
+    )
+
+    llm = get_llm(provider)
+    response = llm.invoke(messages)
+    return response.content

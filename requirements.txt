@@ -1,17 +1,16 @@
-# Document Ingestion & Vector DB
+# Document ingestion & vector DB
 pymupdf
 chromadb
 sentence-transformers
 
-# AI Inference & UI
-groq
+# UI
 gradio
 
-# Environment & Utility (Crucial Additions)
+# Environment
 python-dotenv
 numexpr
 
-# Langchain
+# LangChain core + provider integrations
 langchain
 langchain-openai
-openai
+langchain-groq

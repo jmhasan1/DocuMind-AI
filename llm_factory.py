@@ -1,0 +1,52 @@
+"""Provider-neutral LangChain LLM factory for DocuMind AI."""
+import os
+from functools import lru_cache
+
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
+
+load_dotenv()
+
+DEFAULT_PROVIDER = os.getenv("LLM_PROVIDER", "groq").strip().lower()
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
+
+
+def _normalize_provider(provider: str | None) -> str:
+    value = (provider or DEFAULT_PROVIDER).strip().lower()
+    aliases = {
+        "chatgpt": "openai",
+        "openai": "openai",
+        "groq": "groq",
+    }
+    if value not in aliases:
+        raise ValueError(
+            f"Unsupported LLM provider '{provider}'. Choose 'openai' or 'groq'."
+        )
+    return aliases[value]
+
+
+@lru_cache(maxsize=4)
+def get_llm(provider: str | None = None):
+    """Return a LangChain chat model with the same interface for both providers."""
+    provider_name = _normalize_provider(provider)
+
+    if provider_name == "openai":
+        if not os.getenv("OPENAI_API_KEY"):
+            raise RuntimeError(
+                "OPENAI_API_KEY is missing. Add it to your .env file."
+            )
+        return ChatOpenAI(
+            model=OPENAI_MODEL,
+            temperature=0,
+        )
+
+    if not os.getenv("GROQ_API_KEY"):
+        raise RuntimeError(
+            "GROQ_API_KEY is missing. Add it to your .env file."
+        )
+    return ChatGroq(
+        model=GROQ_MODEL,
+        temperature=0,
+    )
