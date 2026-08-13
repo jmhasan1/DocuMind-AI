@@ -1,7 +1,7 @@
 import gradio as gr
 
 from agent import agent_loop
-from ingest import load_pdf, chunk_text, collection, embed_model
+from ingest import ingest_document
 
 
 def chat(message, history, provider):
@@ -14,9 +14,7 @@ def chat(message, history, provider):
             content = turn.get("content")
 
             if role in {"user", "assistant"} and isinstance(content, str):
-                clean_history.append(
-                    {"role": role, "content": content}
-                )
+                clean_history.append({"role": role, "content": content})
 
     try:
         return agent_loop(
@@ -25,7 +23,6 @@ def chat(message, history, provider):
             provider=provider,
         )
     except Exception as exc:
-        # Show an actionable error in the UI instead of a long Gradio traceback.
         return f"⚠️ {type(exc).__name__}: {exc}"
 
 
@@ -33,23 +30,18 @@ def ingest_file(file):
     if file is None:
         return "⚠️ Please select a valid PDF file first!"
 
-    text = load_pdf(file.name)
-    chunks = chunk_text(text)
+    try:
+        report = ingest_document(file.name)
+    except Exception as exc:
+        return f"⚠️ {type(exc).__name__}: {exc}"
 
-    if not chunks:
+    if report["status"] == "empty":
         return "⚠️ No extractable text was found in the PDF."
 
-    embeddings = embed_model.encode(chunks).tolist()
-
-    collection.add(
-        documents=chunks,
-        embeddings=embeddings,
-        ids=[f"ui_{i}_{hash(chunks[i])}" for i in range(len(chunks))],
-    )
-
     return (
-        f"✅ Successfully processed, vectorized, and indexed "
-        f"{len(chunks)} chunks into ChromaDB!"
+        f"✅ Indexed {report['chunks_indexed']} chunks from "
+        f"{report['filename']} ({report['pages_with_text']} text pages). "
+        f"Document ID: {report['document_id']}"
     )
 
 
