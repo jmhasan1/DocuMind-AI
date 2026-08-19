@@ -1,12 +1,35 @@
+# Local environment
+.env.*
+!.env.example
 .venv
-data
 .env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
 __pycache__
 *.pyc
 *.pyo
+
+# Local databases / vector stores
+chroma/
+data/chroma/
+*.sqlite3
+data/
+chroma_db/
+
+# Local diagnostic output
+scripts/**/output/
+scripts/**/results/
+
+
+# Temporary/runtime diagnostics
+*.log
+*.tmp
+
+# OS
 .DS_Store
 
-
-
-chroma_db
 .python-version
