@@ -9,19 +9,19 @@ Phase 0 goals:
 
 from __future__ import annotations
 
-import hashlib
-from pathlib import Path
-from typing import Any
+import hashlib              # SHA-256 document/chunks IDS
+from pathlib import Path    # filesystem/path handling
+from typing import Any      # type annotations for metadata/report dictionaries
 
-import chromadb
-import fitz
-from sentence_transformers import SentenceTransformer
+import chromadb             # persistent vector database
+import fitz                 # PyMuPDF extraction
+from sentence_transformers import SentenceTransformer   # text to vector embeddings
 
 
-DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-DEFAULT_CHROMA_PATH = "./chroma_db"
-DEFAULT_COLLECTION_NAME = "documents"
-DEFAULT_CHUNK_SIZE = 500
+DEFAULT_EMBEDDING_MODEL = "all-MiniLM-L6-v2"            # sentence transformer model for vector embeddings
+DEFAULT_CHROMA_PATH = "./chroma_db"                     # Chroma is persisted locally
+DEFAULT_COLLECTION_NAME = "documents"                   # ChromaD organizes vector into collections
+DEFAULT_CHUNK_SIZE = 500 
 DEFAULT_CHUNK_OVERLAP = 50
 
 
@@ -32,23 +32,23 @@ embed_model = SentenceTransformer(DEFAULT_EMBEDDING_MODEL)
 client = chromadb.PersistentClient(path=DEFAULT_CHROMA_PATH)
 collection = client.get_or_create_collection(DEFAULT_COLLECTION_NAME)
 
-
+# the function extract all text from the PDF and return it as one string
 def load_pdf(path: str | Path) -> str:
     """Extract text from all pages of a PDF."""
     pdf_path = Path(path)
 
-    if not pdf_path.exists():
+    if not pdf_path.exists():                                           # File existance validation
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-    if pdf_path.suffix.lower() != ".pdf":
+    if pdf_path.suffix.lower() != ".pdf":                               # File Type Validation
         raise ValueError(f"Expected a PDF file, got: {pdf_path.name}")
 
-    with fitz.open(pdf_path) as doc:
+    with fitz.open(pdf_path) as doc:                                    # PyMUPDF Extrction
         pages = [page.get_text("text") for page in doc]
 
     return "\n\n".join(page.strip() for page in pages if page.strip())
 
-
+# second extracton function loads PDF as a list of page records (instead of one giant sring)
 def load_pdf_pages(path: str | Path) -> list[dict[str, Any]]:
     """Extract page-level text while preserving page numbers for provenance."""
     pdf_path = Path(path)
@@ -65,7 +65,7 @@ def load_pdf_pages(path: str | Path) -> list[dict[str, Any]]:
                 "page_number": page_number,
                 "text": page.get_text("text").strip(),
             }
-            for page_number, page in enumerate(doc, start=1)
+            for page_number, page in enumerate(doc, start=1)        # Page no preservation (numbering starts at 1 , not 0)
             if page.get_text("text").strip()
         ]
 
@@ -80,36 +80,36 @@ def chunk_text(
     This remains intentionally simple in Phase 0. We will replace/benchmark
     chunking strategies in the retrieval-quality phase.
     """
-    if chunk_size <= 0:
+    if chunk_size <= 0:                                             # chunk parameter validation
         raise ValueError("chunk_size must be greater than 0")
-    if overlap < 0 or overlap >= chunk_size:
+    if overlap < 0 or overlap >= chunk_size:                        # chunk parameter validation
         raise ValueError("overlap must be >= 0 and smaller than chunk_size")
 
-    words = text.split()
+    words = text.split()                                            # word-based chunking
     if not words:
         return []
 
     step = chunk_size - overlap
-    return [
+    return [                                                       # core of chunking function
         " ".join(words[i : i + chunk_size])
         for i in range(0, len(words), step)
     ]
 
 
-def _sha256_text(text: str) -> str:
+def _sha256_text(text: str) -> str:                                # converts text into a deterministic hash (used for stable chunk ids)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _file_sha256(path: str | Path) -> str:
+def _file_sha256(path: str | Path) -> str:                         # hashes the actual PDF bytes
     digest = hashlib.sha256()
     with open(path, "rb") as file:
-        for block in iter(lambda: file.read(1024 * 1024), b""):
+        for block in iter(lambda: file.read(1024 * 1024), b""):    # reads file in 1024*1024 that's 1MB chunks
             digest.update(block)
     return digest.hexdigest()
 
 
 def _document_id(path: str | Path) -> str:
-    """Create a stable document ID from file contents, not its local path."""
+    """Create a stable document ID from file contents, not its local path."""      
     return _file_sha256(path)[:16]
 
 
@@ -119,7 +119,7 @@ def _chunk_id(document_id: str, chunk_index: int, chunk_text_value: str) -> str:
     return f"{document_id}_chunk_{chunk_index}_{chunk_hash}"
 
 
-def ingest_document(
+def ingest_document(                                # the main pipeline
     path: str | Path,
     *,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
@@ -135,14 +135,14 @@ def ingest_document(
     file_hash = _file_sha256(pdf_path)
     pages = load_pdf_pages(pdf_path)
 
-    full_text = "\n\n".join(page["text"] for page in pages)
-    chunks = chunk_text(
+    full_text = "\n\n".join(page["text"] for page in pages)             # reconstruct the full text
+    chunks = chunk_text(                                                # chunk
         full_text,
         chunk_size=chunk_size,
         overlap=overlap,
     )
 
-    if not chunks:
+    if not chunks:                                      # empty ducment handling
         return {
             "status": "empty",
             "document_id": document_id,
@@ -150,13 +150,13 @@ def ingest_document(
             "chunks_indexed": 0,
         }
 
-    embeddings = embed_model.encode(chunks).tolist()
-    ids = [
+    embeddings = embed_model.encode(chunks).tolist()                # Generate embeddings
+    ids = [                                                         # Generate Chunk IDs
         _chunk_id(document_id, index, chunk)
         for index, chunk in enumerate(chunks)
     ]
 
-    metadatas = [
+    metadatas = [                                                   # Build MetaData
         {
             "document_id": document_id,
             "filename": pdf_path.name,
@@ -171,8 +171,8 @@ def ingest_document(
     ]
 
     # Chroma's upsert makes repeated ingestion of the same document safe.
-    collection.upsert(
-        documents=chunks,
+    collection.upsert(                                              # upsert means approx : Insert if the ID doesn't 
+        documents=chunks,                                           # exist ; update if does
         embeddings=embeddings,
         ids=ids,
         metadatas=metadatas,
