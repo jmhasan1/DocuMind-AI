@@ -41,9 +41,10 @@ def _history_to_messages(chat_history):         # First helper function -- Its j
 
 # The Tool Factory -- this function creates the tools available to the agent.
 # Also note - The agent.py handles tool selection, while rag_core.py handles RAG execution.
+
+#  # The doctring means tools are created for each request, rather than being global objects.This is a good concurrency-aware design.
 def _build_tools(provider, chat_history):
     """Create request-scoped tools so concurrent users cannot change providers."""
-    # Above doctring means tools are created for each request, rather than being global objects.This is a good concurrency-aware design.
     
     # The LLM uses the tool name and description to understand when it should call it.
     @tool
@@ -59,13 +60,13 @@ def _build_tools(provider, chat_history):
     def calculate(expression: str) -> str:
         """Safely evaluate a mathematical expression."""
         try:
-            result = ne.evaluate(expression).item()             # numexpr Instead of eval() -- because arbitrary Python eval() can execute dangerous code.
+            result = ne.evaluate(expression).item()             # numexpr Instead of eval() -- because arbitrary Python eval() can execute dangerous code. (safer option)
             return str(result)
         except Exception:
             return f"Error: '{expression}' is not a valid mathematical expression."
         # error handling is important because tool failures become observations that the LLM can reason about.
 
-    # Summarization Reuses RAG.This is a retrieval-grounded summarization strategy.
+    # Summarization Reuses RAG (i.e. there isn't a separate Document summarization engine).This is a retrieval-grounded summarization strategy.
     # That's a reasonable approach for large documents because we don't necessarily want to feed the entire PDF to the LLM.
     @tool
     def summarize_doc(topic: str) -> str:
@@ -79,7 +80,7 @@ def _build_tools(provider, chat_history):
     return [rag_search, calculate, summarize_doc]
 
 
-# This is the main orchestration function called by app.py.
+# This is the main orchestration function called by app.py. (agent_loop is the Core of the File)
 def agent_loop(user_message, chat_history=None, provider="groq"):
     """Run the agentic RAG loop using the selected LLM provider."""
     tools = _build_tools(provider, chat_history or [])
@@ -90,7 +91,7 @@ def agent_loop(user_message, chat_history=None, provider="groq"):
         tool_choice="auto",             # Let the model decide whether it needs a tool.
     )
 
-    # This is effectively the policy layer of the agent.
+    # System Promot - This is effectively the policy layer of the agent.
     # It defines: WHEN to use RAG ; WHEN to calculate; WHEN to summarize; HOW to behave after tool execution ; WHAT not to hallucinate
     system_prompt = SystemMessage(
         content=(
@@ -150,4 +151,4 @@ def agent_loop(user_message, chat_history=None, provider="groq"):
     # This is where the final natural-language answer is generated.
 
 
-    #  mportant Architectural Detail: This Is a Two-Pass Agent. The current implementation is not an unlimited iterative agent loop.
+    #  Important Architectural Detail: This Is a Two-Pass Agent. The current implementation is not an unlimited iterative agent loop.
