@@ -18,6 +18,7 @@ def _history_to_messages(chat_history):
         if not isinstance(content, str) or not content.strip():
             continue
         if role == "user":
+            
             messages.append(HumanMessage(content=content))
         elif role == "assistant":
             messages.append(AIMessage(content=content))
@@ -91,9 +92,19 @@ def retrieve_chunks(
     return retrieved
 
 # The RAG pipeline
-def rag_answer(query, chat_history=None, provider="groq", top_k=3):
+def rag_answer(
+    query,
+    chat_history=None,
+    provider="groq",
+    top_k=3,
+    document_id=None,
+    ):
     """Retrieve relevant chunks and generate a grounded answer."""
-    retrieved = retrieve_chunks(query, top_k=top_k)                     # Retrieve
+    retrieved = retrieve_chunks(
+    query,
+    top_k=top_k,
+    document_id=document_id,
+    )                               # Retrieve
 
     if not retrieved:
         return (

@@ -4,7 +4,7 @@ from agent import agent_loop             #This connects the ChatInterface to the
 from ingest import ingest_document       #This connects the upload UI to the document ingestion pipeline 
 
 
-def chat(message, history, provider):               # This function is the bridge between the ChatInterface and the agent.
+def chat(message, history, provider,document_id):               # This function is the bridge between the ChatInterface and the agent.
     """Gradio ChatInterface callback with provider selection."""
     clean_history = []                     # to create a normalized conversation-history structure.
 
@@ -22,35 +22,44 @@ def chat(message, history, provider):               # This function is the bridg
             user_message=message,           # app.py provides the user message, the cleaned chat history, and the selected provider to the agent loop.The agent provides:final answer.
             chat_history=clean_history,
             provider=provider,              # UI allows user to select between different LLM providers (Groq or OpenAI) for the agent loop.
+            document_id=document_id,        # app.py passes the document_id to the agent loop, which is then passed to the RAG answer function for document-specific retrieval.
         )
     except Exception as exc:
         return f"⚠️ {type(exc).__name__}: {exc}"        # For production, I would not expose raw exception messages to users.
 
 
 # Responsibilty - take the uploaded PDF and send it into the ingestion pipeline.
-def ingest_file(file):
+
+def ingest_file(file, current_document_id):
     if file is None:
-        return "⚠️ Please select a valid PDF file first!"
+        return "⚠️ Please select a valid PDF file first!", current_document_id
 
     try:
-        report = ingest_document(file.name)             # app.py only knows app.py only knows.It doesn't know what happens internally.
+        report = ingest_document(file.name)                                     # app.py only knows app.py only knows.It doesn't know what happens internally.
     except Exception as exc:
-        return f"⚠️ {type(exc).__name__}: {exc}"        #This protects the UI from ingestion failures.
+        return f"⚠️ {type(exc).__name__}: {exc}", current_document_id          #This protects the UI from ingestion failures.
 
-    if report["status"] == "empty":                     # Handling an Empty PDF.
-        return "⚠️ No extractable text was found in the PDF."
+    if report["status"] == "empty":                                             # Handling an Empty PDF.
+        return "⚠️ No extractable text was found in the PDF.", current_document_id
 
-    return (                
+    document_id = report["document_id"]
+
+    status_message = (
         f"✅ Indexed {report['chunks_indexed']} chunks from "
         f"{report['filename']} ({report['pages_with_text']} text pages). "
-        f"Document ID: {report['document_id']}"
+        f"Document ID: {document_id}"
     )
-    # Succesful Ingeston Response - The ingestion layer returns a structured report. 
-    # app.py converts that structured backend result into a human-readable UI message
+
+    return status_message, document_id
+
+# Succesful Ingeston Response - The ingestion layer returns a structured report.
+# app.py converts that structured backend result into a human-readable UI message
+
 
 # Building the Gradio Application
 with gr.Blocks(title="DocuMind AI") as demo:        # This creates the main Gradio application.
     gr.Markdown("# 🧠 DocuMind AI — Agentic RAG Assistant")
+    active_document_id = gr.State(value=None)
 
     with gr.Row():              # creates a horizontal layout.
         with gr.Column(scale=1): # creates a vertical layout for the left side of the UI.The scale values control the relative width.
@@ -71,16 +80,15 @@ with gr.Blocks(title="DocuMind AI") as demo:        # This creates the main Grad
                 interactive=False,
             )
 
-            ingest_btn.click(                  # When ingest_btn is clicked, call ingest_file() using file_upload as input and put its return value into status.
-                ingest_file,                   # This is effectively an event-driven callback.
-                inputs=file_upload,
-                outputs=status,
+            ingest_btn.click(                   # When ingest_btn is clicked, call ingest_file() using file_upload as input and put its return value into status.
+                ingest_file,                    # This is effectively an event-driven callback.
+                inputs=[file_upload, active_document_id],
+                outputs=[status, active_document_id],
             )
-
         with gr.Column(scale=3):
-            gr.ChatInterface(                   # This is the core conversational UI.
-                fn=chat,                        # It means : User submits message --> Gradio calls chat().
-                additional_inputs=[provider],   # Normally the chat callback receives the conversation information. But the callback also excepts provider, because its signature is:chat(message, history, provider).
+            gr.ChatInterface(                                       # This is the core conversational UI.
+                fn=chat,                                            # It means : User submits message --> Gradio calls chat().
+                additional_inputs=[provider, active_document_id],   # Normally the chat callback receives the conversation information. But the callback also excepts provider, because its signature is:chat(message, history, provider).
                 title="Chat with your documents",
                 description="Choose Groq or OpenAI, then ask questions about your indexed PDFs.",
             )

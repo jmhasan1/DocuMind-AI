@@ -263,6 +263,23 @@ The exact scope of future releases is governed by experimental results.
 5. **Evidence over demo quality**
 6. **Domain-driven architecture**
 
+## Testing
+
+DocuMind AI uses **pytest** for automated testing.
+
+Run the full test suite:
+
+```bash
+uv run pytest -v
+```
+
+The test suite covers environment validation, retrieval, RAG answer generation, and agent behavior.
+
+**Current status:** 14 tests passed.
+
+Document-level retrieval isolation is also validated through manual UI testing, ensuring that queries against one active document do not retrieve content from another document.
+
+
 ## License
 
 MIT.

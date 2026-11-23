@@ -43,7 +43,7 @@ def _history_to_messages(chat_history):         # First helper function -- Its j
 # Also note - The agent.py handles tool selection, while rag_core.py handles RAG execution.
 
 #  # The doctring means tools are created for each request, rather than being global objects.This is a good concurrency-aware design.
-def _build_tools(provider, chat_history):
+def _build_tools(provider, chat_history, document_id=None):
     """Create request-scoped tools so concurrent users cannot change providers."""
     
     # The LLM uses the tool name and description to understand when it should call it.
@@ -54,6 +54,7 @@ def _build_tools(provider, chat_history):
             query,
             chat_history=chat_history,
             provider=provider,
+            document_id=document_id,
         )
 
     @tool
@@ -75,15 +76,25 @@ def _build_tools(provider, chat_history):
             f"Summarize everything about: {topic}",
             chat_history=chat_history,
             provider=provider,
+            document_id=document_id,
         )
 
     return [rag_search, calculate, summarize_doc]
 
 
 # This is the main orchestration function called by app.py. (agent_loop is the Core of the File)
-def agent_loop(user_message, chat_history=None, provider="groq"):
+def agent_loop(
+    user_message,
+    chat_history=None,
+    provider="groq",
+    document_id=None,
+    ):
     """Run the agentic RAG loop using the selected LLM provider."""
-    tools = _build_tools(provider, chat_history or [])
+    tools = _build_tools(
+    provider,
+    chat_history or [],
+    document_id=document_id,
+    )
 
     llm = get_llm(provider)             # This delegates model creation to llm_factory.py.
     llm_with_tools = llm.bind_tools(    # Binds the tools.The model can now produce structured tool calls.
