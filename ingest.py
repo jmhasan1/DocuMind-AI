@@ -178,6 +178,11 @@ def ingest_document(                                # the main pipeline
         metadatas=metadatas,
     )
 
+    # Invalidate cached BM25 indexes after the corpus changes.
+    from retrieval.sparse import invalidate_bm25_cache
+
+    invalidate_bm25_cache()
+
     return {
         "status": "success",
         "document_id": document_id,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from ingest import collection, embed_model
+from retrieval.dense import retrieve_dense
 from llm_factory import get_llm
 
 # This function converts the UI's conversation history into LangChain message objects.
@@ -30,66 +30,13 @@ def retrieve_chunks(
     top_k: int = 3,
     document_id: str | None = None,
 ) -> list[dict]:
-    """Retrieve document chunks with optional document-level filtering.
+    """Backward-compatible wrapper for dense retrieval."""
 
-    Args:
-        query: Natural-language retrieval query.
-        top_k: Maximum number of chunks to return.
-        document_id: Optional Chroma document ID. When provided,
-            retrieval is restricted to that document.
-
-    Returns:
-        Retrieved chunks with text, metadata, and Chroma distance.
-    """
-    if not query or not query.strip():
-        return []
-
-    if top_k <= 0:
-        raise ValueError("top_k must be greater than 0")
-
-    if document_id is not None and not document_id.strip():
-        raise ValueError("document_id must be non-empty when provided")
-
-    query_embedding = embed_model.encode([query]).tolist()
-
-    query_kwargs = {
-        "query_embeddings": query_embedding,
-        "n_results": top_k,
-        "include": ["documents", "metadatas", "distances"],
-    }
-
-    # Restrict retrieval to a specific document when requested.
-    if document_id is not None:
-        query_kwargs["where"] = {
-            "document_id": document_id
-        }
-
-    results = collection.query(**query_kwargs)
-
-    documents = results.get("documents", [[]])[0]
-    metadatas = results.get("metadatas", [[]])[0]
-    distances = results.get("distances", [[]])[0]
-
-    retrieved = []
-
-    for index, document in enumerate(documents):
-        retrieved.append(
-            {
-                "text": document,
-                "metadata": (
-                    metadatas[index]
-                    if index < len(metadatas)
-                    else {}
-                ),
-                "distance": (
-                    distances[index]
-                    if index < len(distances)
-                    else None
-                ),
-            }
-        )
-
-    return retrieved
+    return retrieve_dense(
+        query=query,
+        top_k=top_k,
+        document_id=document_id,
+    )
 
 # The RAG pipeline
 def rag_answer(
