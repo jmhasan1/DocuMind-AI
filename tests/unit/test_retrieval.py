@@ -27,15 +27,18 @@ def rag_core_module(monkeypatch):
 
 @pytest.fixture
 def mock_retrieval_dependencies(rag_core_module, monkeypatch):
-    """Provide isolated mocks for retrieval dependencies."""
+    """Provide isolated mocks for dense retrieval dependencies."""
+
+    dense_module = import_module("retrieval.dense")
 
     mock_collection = Mock()
     mock_embed_model = Mock()
 
-    monkeypatch.setattr(rag_core_module, "collection", mock_collection)
-    monkeypatch.setattr(rag_core_module, "embed_model", mock_embed_model)
+    monkeypatch.setattr(dense_module, "collection", mock_collection)
+    monkeypatch.setattr(dense_module, "embed_model", mock_embed_model)
 
     return rag_core_module, mock_collection, mock_embed_model
+
 
 
 def test_empty_query_returns_empty_list(mock_retrieval_dependencies):
@@ -110,6 +113,9 @@ def test_retrieval_returns_text_metadata_and_distance(
         "metadata": {"source": "B"},
         "distance": 0.2,
     }
+
+    query_kwargs = mock_collection.query.call_args.kwargs
+    assert query_kwargs["n_results"] == 2
 
 def test_negative_top_k_raises_value_error(mock_retrieval_dependencies):
     rag_core, _, _ = mock_retrieval_dependencies
